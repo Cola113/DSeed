@@ -10,14 +10,32 @@ const ALLOWED_SIZES = new Set(['1K', '2K', '4K']);
 
 type Mode = 'text' | 'img' | 'imgs';
 
+interface ArkGenerationRequest {
+  model: string;
+  prompt: string;
+  sequential_image_generation: 'disabled' | 'enabled';
+  response_format: 'url' | 'b64_json';
+  size: '1K' | '2K' | '4K' | (string & {});
+  stream: boolean;
+  watermark: boolean;
+  image?: string | string[];
+}
+
+type ArkItem = { url?: string };
+interface ArkResponse {
+  data?: ArkItem[];
+  error?: unknown;
+  [k: string]: unknown;
+}
+
 export async function POST(req: Request) {
   try {
     const contentType = req.headers.get('content-type') || '';
     let mode: Mode = 'text';
     let prompt = '';
     let model = 'doubao-seedream-4-0-250828';
-    let size = '2K';
-    let watermark: boolean | string = false; // 默认改为 false
+    let size: string = '2K';
+    let watermark: boolean = false; // 默认 false
     let imageUrls: string[] = [];
 
     if (contentType.includes('multipart/form-data')) {
@@ -48,7 +66,14 @@ export async function POST(req: Request) {
         }
       }
     } else {
-      const body = await req.json();
+      const body = await req.json() as {
+        mode?: Mode;
+        prompt?: string;
+        model?: string;
+        size?: string;
+        watermark?: boolean;
+        imageUrls?: string[] | string;
+      };
       mode = (body.mode || 'text') as Mode;
       prompt = body.prompt || '';
       model = body.model || model;
@@ -68,12 +93,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '缺少 prompt' }, { status: 400 });
     }
 
-    const payload: any = {
+    const payload: ArkGenerationRequest = {
       model,
       prompt,
       sequential_image_generation: 'disabled',
       response_format: 'url',
-      size,
+      size: size as ArkGenerationRequest['size'],
       stream: false,
       watermark,
     };
@@ -94,17 +119,18 @@ export async function POST(req: Request) {
       body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
+    const data: ArkResponse = await res.json();
     if (!res.ok) {
       return NextResponse.json({ error: data?.error || data }, { status: res.status });
     }
 
-    const urls = Array.isArray(data?.data)
-      ? data.data.map((d: any) => d?.url).filter(Boolean)
+    const urls = Array.isArray(data.data)
+      ? data.data.map((d) => d.url).filter((u): u is string => Boolean(u))
       : [];
 
     return NextResponse.json({ images: urls, raw: data });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Internal error' }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Internal error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
