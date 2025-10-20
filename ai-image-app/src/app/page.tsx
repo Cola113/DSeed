@@ -387,7 +387,7 @@ export default function Home() {
                 </select>
               </div>
 
-              {mode !== 'text' && (!hasSingleSelectedInImg || mode === 'imgs') && (
+              {mode !== 'text' && !(mode === 'img' && hasSingleSelectedInImg) && (
                 <>
                   <div
                     onPaste={handlePaste}
