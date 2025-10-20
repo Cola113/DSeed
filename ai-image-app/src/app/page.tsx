@@ -20,7 +20,6 @@ const getNameFromUrl = (u: string) => {
   }
 };
 
-// 移除图标按钮（悬停变红，轻微放大，按下缩放）
 function RemoveBtn({
   onClick,
   title = '移除',
@@ -49,7 +48,6 @@ function RemoveBtn({
   );
 }
 
-// 小工具：移动数组元素
 const arrayMove = <T,>(arr: T[], from: number, to: number) => {
   const a = arr.slice();
   const [m] = a.splice(from, 1);
@@ -60,7 +58,7 @@ const arrayMove = <T,>(arr: T[], from: number, to: number) => {
 export default function Home() {
   const [mode, setMode] = useState<Mode>('text');
   const [prompt, setPrompt] = useState('');
-  const [size, setSize] = useState<'1K' | '2K' | '4K'>('2K'); // 新增：分辨率
+  const [size, setSize] = useState<'1K' | '2K' | '4K'>('2K');
   const [files, setFiles] = useState<LocalImage[]>([]);
   const [urlItems, setUrlItems] = useState<UrlItem[]>([{ id: uid(), url: '' }]);
 
@@ -69,15 +67,12 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // “继续编辑”对话框
   const [editUrl, setEditUrl] = useState<string | null>(null);
 
-  // 拖拽排序状态
   const dragKeyRef = useRef<string | null>(null);
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
 
-  // 载入/持久化历史
   useEffect(() => {
     try {
       const raw = localStorage.getItem(HISTORY_KEY);
@@ -96,7 +91,6 @@ export default function Home() {
     id: `${f.name}-${f.size}-${f.lastModified}-${uid()}`,
   });
 
-  // 添加文件：text -> 自动切 img/imgs；img 仅保留一张并清空外链；imgs 追加
   const addFiles = useCallback(
     (list: File[] | FileList) => {
       const arr = Array.from(list).filter((f) => f.type.startsWith('image/'));
@@ -114,7 +108,7 @@ export default function Home() {
           prev.forEach((p) => URL.revokeObjectURL(p.url));
           return [item];
         });
-        setUrlItems([{ id: uid(), url: '' }]); // 单图：本地优先，清空外链输入
+        setUrlItems([{ id: uid(), url: '' }]);
       } else {
         const next = arr.map(makeItem);
         setFiles((prev) => [...prev, ...next]);
@@ -133,7 +127,6 @@ export default function Home() {
 
   const onAddUrlField = () => setUrlItems((arr) => [...arr, { id: uid(), url: '' }]);
 
-  // img 模式：外链一旦有值则清空本地文件，保持单一来源
   const onChangeUrl = (i: number, v: string) => {
     setUrlItems((arr) => arr.map((x, idx) => (idx === i ? { ...x, url: v } : x)));
     if (mode === 'img' && i === 0 && v.trim()) {
@@ -150,9 +143,11 @@ export default function Home() {
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    const items = e.clipboardData?.items || [];
+    const items = e.clipboardData?.items;
+    if (!items) return;
     const pasteFiles: File[] = [];
-    for (const it of items as any) {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
       if (it.kind === 'file') {
         const f = it.getAsFile();
         if (f && f.type.startsWith('image/')) pasteFiles.push(f);
@@ -168,7 +163,6 @@ export default function Home() {
 
   const handleModeChange = (m: Mode) => {
     if (m === 'img') {
-      // 收敛到单图：多余文件 revoke，仅保留首项；有文件则清空外链，否则仅保留首个外链
       setFiles((prev) => {
         if (prev.length <= 1) return prev;
         prev.slice(1).forEach((p) => URL.revokeObjectURL(p.url));
@@ -181,7 +175,6 @@ export default function Home() {
     setMode(m);
   };
 
-  // 提交
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -192,7 +185,7 @@ export default function Home() {
       const fd = new FormData();
       fd.append('mode', mode);
       fd.append('prompt', prompt);
-      fd.append('size', size); // 新增：传递分辨率
+      fd.append('size', size);
 
       const cleanedUrls = urlItems.map((u) => u.url.trim()).filter(Boolean);
 
@@ -211,24 +204,23 @@ export default function Home() {
       const urls: string[] = Array.isArray(data?.images) ? data.images : [];
       setImages(urls);
 
-      // 写入历史（去重追加，最多 HISTORY_MAX）
       if (urls.length) {
         setHistory((prev) => {
           const seen = new Set(prev.map((h) => h.url));
           const add: HistoryItem[] = urls
             .filter((u) => !seen.has(u))
             .map((u) => ({ id: uid(), url: u, ts: Date.now() }));
-          return [...add, ...prev].slice(0, HISTORY_MAX); // 新的在前
+          return [...add, ...prev].slice(0, HISTORY_MAX);
         });
       }
-    } catch (err: any) {
-      setError(err?.message || '请求出错');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '请求出错';
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  // 预览与按钮可用性
   const firstUrl = (urlItems[0]?.url || '').trim();
   const hasSingleSelectedInImg = mode === 'img' && (files.length > 0 || !!firstUrl);
   const cleanedUrls = urlItems.map((u) => u.url.trim()).filter(Boolean);
@@ -244,7 +236,6 @@ export default function Home() {
       ? hasPrompt && effectiveCountImg >= 1
       : hasPrompt && effectiveCountImgs >= 2;
 
-  // 多图拖拽：把文件与非空外链合并为“可排序列表”，拖拽后再拆回
   type PreviewItem = { key: string; kind: 'file' | 'url'; url: string; name: string };
   const filesMap = new Map(files.map((f) => [f.id, f]));
   const urlsMap = new Map(urlItems.map((u) => [u.id, u]));
@@ -313,17 +304,14 @@ export default function Home() {
     onDragEnd();
   };
 
-  // 继续编辑：弹窗操作
   const applyContinueEdit = (as: 'img' | 'imgs') => {
     if (!editUrl) return;
     if (as === 'img') {
-      // 单图：用外链替换
       files.forEach((f) => URL.revokeObjectURL(f.url));
       setFiles([]);
       setUrlItems([{ id: uid(), url: editUrl }]);
       setMode('img');
     } else {
-      // 多图：末尾追加外链
       setMode('imgs');
       setUrlItems((prev) => {
         const filled = prev.filter((u) => u.url.trim());
@@ -334,13 +322,11 @@ export default function Home() {
     setEditUrl(null);
   };
 
-  // 历史操作
   const clearHistory = () => setHistory([]);
   const removeHistory = (id: string) => setHistory((prev) => prev.filter((h) => h.id !== id));
 
   return (
     <main className="relative min-h-[100dvh] overflow-hidden">
-      {/* 深色基底 + 透明玻璃 + 无缝雨滴（.rain 在 globals.css） */}
       <div className="absolute inset-0 -z-30 bg-gradient-to-b from-slate-950 via-slate-900 to-black" />
       <div className="glass-pane -z-20" />
       <div className="rain -z-10" />
@@ -359,7 +345,6 @@ export default function Home() {
             </p>
 
             <form onSubmit={handleSubmit} className="mt-7 space-y-6">
-              {/* 模式切换 */}
               <div className="flex flex-wrap gap-2">
                 {(['text', 'img', 'imgs'] as Mode[]).map((m) => {
                   const label = m === 'text' ? '文生图' : m === 'img' ? '单图生图' : '多图生图';
@@ -377,7 +362,6 @@ export default function Home() {
                 })}
               </div>
 
-              {/* 提示词 */}
               <div>
                 <label className="block text-sm mb-1 text-white/80">提示词（prompt）</label>
                 <textarea
@@ -390,7 +374,6 @@ export default function Home() {
                 />
               </div>
 
-              {/* 分辨率（1K / 2K / 4K） */}
               <div>
                 <label className="block text-sm mb-1 text-white/80">分辨率</label>
                 <select
@@ -404,10 +387,8 @@ export default function Home() {
                 </select>
               </div>
 
-              {/* 非文生图：导入区（单图选中后隐藏） */}
               {mode !== 'text' && (!hasSingleSelectedInImg || mode === 'imgs') && (
                 <>
-                  {/* 粘贴/拖拽 */}
                   <div
                     onPaste={handlePaste}
                     onDragOver={(e) => e.preventDefault()}
@@ -420,7 +401,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* 本地上传 */}
                   <div>
                     <label className="block text-sm mb-1 text-white/80">
                       上传图片（{mode === 'imgs' ? '可多选' : '单张'}）
@@ -435,7 +415,6 @@ export default function Home() {
                     />
                   </div>
 
-                  {/* 外链 URL（img 模式仅一行、不显示添加按钮） */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-sm text-white/80">图片外链 URL（可选）</label>
@@ -469,7 +448,6 @@ export default function Home() {
                 </>
               )}
 
-              {/* 预览区：单图与多图统一卡片大小（网格） */}
               {mode === 'img' && hasSingleSelectedInImg && (
                 <div>
                   <h3 className="text-sm text-white/80 mb-2">待生成的图片预览</h3>
@@ -515,7 +493,6 @@ export default function Home() {
                             ${isOver ? 'ring-2 ring-cyan-400/70' : ''}`}
                           title="拖动以调整顺序"
                         >
-                          {/* 占位高亮动画 */}
                           {isOver && (
                             <div className="pointer-events-none absolute inset-0 border-2 border-dashed border-cyan-400/70 animate-pulse rounded-xl" />
                           )}
@@ -546,7 +523,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* 操作按钮：满足条件才可点击 */}
               <div className="flex items-center gap-3">
                 <button
                   type="submit"
@@ -579,10 +555,8 @@ export default function Home() {
               </div>
             </form>
 
-            {/* 错误与结果 */}
             {error && <p className="text-rose-300 mt-4">{error}</p>}
 
-            {/* 生成结果：按钮拆分 + 继续编辑 */}
             {images.length > 0 && (
               <section className="mt-8">
                 <h2 className="text-lg font-medium mb-3">生成结果</h2>
@@ -620,7 +594,6 @@ export default function Home() {
               </section>
             )}
 
-            {/* 历史记录 */}
             {history.length > 0 && (
               <section className="mt-10">
                 <div className="flex items-center justify-between mb-3">
@@ -674,7 +647,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 继续编辑选择弹窗 */}
       {editUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditUrl(null)}>
           <div className="max-w-sm w-full rounded-2xl border border-white/20 bg-white/10 backdrop-blur-xl text-white p-6" onClick={(e) => e.stopPropagation()}>
