@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     const contentType = req.headers.get('content-type') || '';
     let mode: Mode = 'text';
     let prompt = '';
-    let model = 'doubao-seedream-4-0-250828';
+    let model = 'doubao-seedream-4-5-251128';
     let size: string = '2K';
     let watermark: boolean = false; // 默认 false
     let imageUrls: string[] = [];
@@ -134,3 +134,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
