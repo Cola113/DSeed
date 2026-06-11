@@ -1,0 +1,33 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: Q0DeR-MaG1C-BrAnCh-Fo2-NoN-GiT-Or-No-C0MmIt
+exported_at: "2026-06-11T10:40:46Z"
+modules:
+    "":
+        dir_name: AI 图像生成与编辑应用
+        title: AI 图像生成与编辑应用
+        scope:
+            - README.md
+            - eslint.config.mjs
+            - next-env.d.ts
+            - next.config.ts
+            - package-lock.json
+            - package.json
+            - postcss.config.mjs
+            - tsconfig.json
+            - src/
+            - public\favicon.ico
+            - public\file.svg
+            - public\globe.svg
+            - public\next.svg
+            - public\vercel.svg
+            - public\window.svg
+            - src\app\api\generate\route.ts
+            - src\app\globals.css
+            - src\app\layout.tsx
+            - src\app\page.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

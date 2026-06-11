@@ -1,0 +1,26 @@
+schema_version: 1
+module_path: ""
+title: AI 图像生成与编辑应用
+scope:
+    - README.md
+    - eslint.config.mjs
+    - next-env.d.ts
+    - next.config.ts
+    - package-lock.json
+    - package.json
+    - postcss.config.mjs
+    - tsconfig.json
+    - src/
+    - public\favicon.ico
+    - public\file.svg
+    - public\globe.svg
+    - public\next.svg
+    - public\vercel.svg
+    - public\window.svg
+    - src\app\api\generate\route.ts
+    - src\app\globals.css
+    - src\app\layout.tsx
+    - src\app\page.tsx
+source_files: []
+depends_on: []
+related_to: []
