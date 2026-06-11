@@ -2,6 +2,12 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 
+type ModelKey = '5.0-lite' | '4.5';
+const MODELS: Record<ModelKey, { label: string; sizes: ('2K' | '3K' | '4K')[] }> = {
+  '5.0-lite': { label: '5.0-lite', sizes: ['2K', '3K', '4K'] },
+  '4.5':      { label: '4.5',      sizes: ['2K', '4K'] },
+};
+
 type Mode = 'text' | 'img' | 'imgs';
 type LocalImage = { file: File; url: string; id: string };
 type UrlItem = { id: string; url: string };
@@ -58,7 +64,13 @@ const arrayMove = <T,>(arr: T[], from: number, to: number) => {
 export default function Home() {
   const [mode, setMode] = useState<Mode>('text');
   const [prompt, setPrompt] = useState('');
-  const [size, setSize] = useState<'1K' | '2K' | '4K'>('2K');
+  const [model, setModel] = useState<ModelKey>('4.5');
+  const [size, setSize] = useState<'2K' | '3K' | '4K'>('2K');
+  const handleModelChange = (m: ModelKey) => {
+    setModel(m);
+    const sizes = MODELS[m].sizes;
+    if (!sizes.includes(size as '2K' | '3K' | '4K')) setSize('2K');
+  };
   const [files, setFiles] = useState<LocalImage[]>([]);
   const [urlItems, setUrlItems] = useState<UrlItem[]>([{ id: uid(), url: '' }]);
 
@@ -185,6 +197,7 @@ export default function Home() {
       const fd = new FormData();
       fd.append('mode', mode);
       fd.append('prompt', prompt);
+      fd.append('model', model);
       fd.append('size', size);
 
       const cleanedUrls = urlItems.map((u) => u.url.trim()).filter(Boolean);
@@ -363,6 +376,25 @@ export default function Home() {
               </div>
 
               <div>
+                <label className="block text-sm mb-1 text-white/80">模型</label>
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(MODELS) as ModelKey[]).map((m) => {
+                    const active = model === m;
+                    return (
+                      <label
+                        key={m}
+                        className={`cursor-pointer inline-flex items-center gap-2 rounded-full px-3 py-1.5 border text-sm transition
+                        ${active ? 'bg-cyan-400/95 text-slate-900 border-cyan-300 shadow-md' : 'bg-white/10 text-white/90 border-white/20 hover:bg-white/15'}`}
+                      >
+                        <input type="radio" className="sr-only" checked={active} onChange={() => handleModelChange(m)} />
+                        <span>{MODELS[m].label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm mb-1 text-white/80">提示词（prompt）</label>
                 <textarea
                   className="w-full rounded-xl border border-white/20 bg-white/10 text-white placeholder-white/60 px-3 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
@@ -379,11 +411,11 @@ export default function Home() {
                 <select
                   className="w-full rounded-xl border border-white/20 bg-white/10 text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
                   value={size}
-                  onChange={(e) => setSize(e.target.value as '1K' | '2K' | '4K')}
+                  onChange={(e) => setSize(e.target.value as '2K' | '3K' | '4K')}
                 >
-                  <option className="text-slate-900" value="1K">1K</option>
-                  <option className="text-slate-900" value="2K">2K</option>
-                  <option className="text-slate-900" value="4K">4K</option>
+                  {MODELS[model].sizes.map((s) => (
+                    <option key={s} className="text-slate-900" value={s}>{s}</option>
+                  ))}
                 </select>
               </div>
 
