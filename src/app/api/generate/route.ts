@@ -3,10 +3,15 @@ export const maxDuration = 60;
 export const preferredRegion = 'hkg1';
 
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 const ARK_URL = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
-const ALLOWED_SIZES = new Set(['1K', '2K', '4K']);
+
+const MODEL_MAP: Record<string, { modelId: string; allowedSizes: Set<string> }> = {
+  '5.0-lite': { modelId: 'doubao-seedream-5-0-260128', allowedSizes: new Set(['2K', '3K', '4K']) },
+  '4.5':      { modelId: 'doubao-seedream-4-5-251128', allowedSizes: new Set(['2K', '4K']) },
+};
+const DEFAULT_MODEL = '4.5';
 
 type Mode = 'text' | 'img' | 'imgs';
 
@@ -15,7 +20,7 @@ interface ArkGenerationRequest {
   prompt: string;
   sequential_image_generation: 'disabled' | 'enabled';
   response_format: 'url' | 'b64_json';
-  size: '1K' | '2K' | '4K' | (string & {});
+  size: '2K' | '3K' | '4K' | (string & {});
   stream: boolean;
   watermark: boolean;
   image?: string | string[];
@@ -34,6 +39,7 @@ export async function POST(req: Request) {
     let mode: Mode = 'text';
     let prompt = '';
     let model = 'doubao-seedream-4-5-251128';
+    let modelKey = DEFAULT_MODEL;
     let size: string = '2K';
     let watermark: boolean = false; // 默认 false
     let imageUrls: string[] = [];
@@ -42,11 +48,13 @@ export async function POST(req: Request) {
       const form = await req.formData();
       mode = String(form.get('mode') || 'text') as Mode;
       prompt = String(form.get('prompt') || '');
-      model = String(form.get('model') || model);
-      size = String(form.get('size') || size);
+      modelKey = String(form.get('model') || DEFAULT_MODEL);
+      const modelCfg = MODEL_MAP[modelKey] || MODEL_MAP[DEFAULT_MODEL];
+      model = modelCfg.modelId;
+      size = String(form.get('size') || '2K');
       watermark = String(form.get('watermark') ?? 'false') === 'true';
 
-      if (!ALLOWED_SIZES.has(size)) size = '2K';
+      if (!modelCfg.allowedSizes.has(size)) size = '2K';
 
       const urlsFromForm = form.getAll('imageUrls').map(String).filter(Boolean);
       imageUrls.push(...urlsFromForm);
@@ -54,13 +62,32 @@ export async function POST(req: Request) {
       const files = form.getAll('files').filter((f): f is File => f instanceof File);
       if (files.length > 0) {
         try {
+          const ossRegion = process.env.OSS_REGION || '';
+          const ossBucket = process.env.OSS_BUCKET || '';
+          const s3 = new S3Client({
+            region: ossRegion,
+            endpoint: `https://oss-${ossRegion}.aliyuncs.com`,
+            credentials: {
+              accessKeyId: process.env.OSS_ACCESS_KEY_ID || '',
+              secretAccessKey: process.env.OSS_ACCESS_KEY_SECRET || '',
+            },
+            forcePathStyle: false,
+          });
           for (const file of files) {
-            const { url } = await put(`uploads/${Date.now()}-${file.name}`, file, { access: 'public' });
-            imageUrls.push(url);
+            const buf = Buffer.from(await file.arrayBuffer());
+            const key = `uploads/${Date.now()}-${file.name}`;
+            await s3.send(new PutObjectCommand({
+              Bucket: ossBucket,
+              Key: key,
+              Body: buf,
+              ContentType: file.type,
+            }));
+            imageUrls.push(`https://${ossBucket}.oss-${ossRegion}.aliyuncs.com/${key}`);
           }
-        } catch {
+        } catch (uploadErr) {
+          console.error('[OSS Upload Error]', uploadErr);
           return NextResponse.json(
-            { error: '文件上传未配置：请先在 Vercel 启用 Blob，或改用 imageUrls 外链进行本地调试。' },
+            { error: '文件上传失败：请检查 OSS 配置（region/accessKeyId/accessKeySecret/bucket）是否正确。' },
             { status: 501 }
           );
         }
@@ -76,11 +103,13 @@ export async function POST(req: Request) {
       };
       mode = (body.mode || 'text') as Mode;
       prompt = body.prompt || '';
-      model = body.model || model;
-      size = body.size || size;
+      modelKey = body.model || DEFAULT_MODEL;
+      const modelCfg = MODEL_MAP[modelKey] || MODEL_MAP[DEFAULT_MODEL];
+      model = modelCfg.modelId;
+      size = body.size || '2K';
       watermark = body.watermark ?? false;
 
-      if (!ALLOWED_SIZES.has(size)) size = '2K';
+      if (!modelCfg.allowedSizes.has(size)) size = '2K';
 
       imageUrls = Array.isArray(body.imageUrls)
         ? body.imageUrls
